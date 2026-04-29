@@ -13,6 +13,7 @@ TIMEOUT = 20
 STATUS_OK_TWSE = "更新成功（TWSE）"
 STATUS_OK_TPEX = "更新成功（TPEX）"
 STATUS_OK_YAHOO_HISTORY = "更新成功（Yahoo歷史備援）"
+STATUS_OK_YAHOO_FALLBACK = "更新成功（Yahoo備援）"
 STATUS_CODE_NOT_FOUND = "代號不存在（TWSE/TPEX）"
 STATUS_SOURCE_DOWN = "資料源暫時不可用"
 STATUS_MA_UNAVAILABLE = "資料異常（無法取得均線）"
@@ -188,6 +189,9 @@ class TwseTpexProvider:
 
     def fetch_yahoo_history_closes(self, code: str, market: str) -> list[float]:
         suffix = "TW" if market == "TWSE" else "TWO"
+        return self.fetch_yahoo_chart(code, suffix)[1]
+
+    def fetch_yahoo_chart(self, code: str, suffix: str) -> tuple[dict, list[float]]:
         symbol = f"{code}.{suffix}"
         last_error = None
         for host in ("query1.finance.yahoo.com", "query2.finance.yahoo.com"):
@@ -199,23 +203,45 @@ class TwseTpexProvider:
                 result = payload.get("chart", {}).get("result", []) if isinstance(payload, dict) else []
                 if not result:
                     raise ValueError(f"{host}:empty_result")
+                meta = result[0].get("meta", {})
                 closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
                 clean = [float(v) for v in closes if v is not None]
                 if len(clean) < 20:
                     raise ValueError(f"{host}:not_enough_history:{len(clean)}")
-                return clean
+                return meta, clean
             except Exception as exc:
                 last_error = exc
         raise ValueError(str(last_error) if last_error else "yahoo_history_failed")
 
+    def fetch_yahoo_fallback(self, code: str, existing_row: dict) -> ProviderResult:
+        last_error = None
+        for suffix in ("TW", "TWO"):
+            try:
+                meta, closes = self.fetch_yahoo_chart(code, suffix)
+                ma5, ma10, ma20, ma50 = compute_mas(closes)
+                price = parse_float(meta.get("regularMarketPrice")) or closes[-1]
+                name = str(existing_row.get("name") or meta.get("shortName") or meta.get("symbol") or "").strip()
+                trend = derive_trend(price, ma5, ma10, ma20, ma50)
+                return ProviderResult(name, price, ma5, ma10, ma20, ma50, trend, STATUS_OK_YAHOO_FALLBACK)
+            except Exception as exc:
+                last_error = exc
+        raise ValueError(str(last_error) if last_error else "yahoo_fallback_failed")
+
     def fetch(self, code: str, existing_row: dict) -> ProviderResult:
         if not self.twse_ok and not self.tpex_ok:
-            return ProviderResult(None, None, None, None, None, None, "資料不足", STATUS_SOURCE_DOWN)
+            try:
+                return self.fetch_yahoo_fallback(code, existing_row)
+            except Exception:
+                return ProviderResult(None, None, None, None, None, None, "資料不足", STATUS_SOURCE_DOWN)
 
         in_twse = code in self.twse_map
         in_tpex = code in self.tpex_map
         if not in_twse and not in_tpex:
-            return ProviderResult(None, None, None, None, None, None, "資料不足", STATUS_CODE_NOT_FOUND)
+            try:
+                return self.fetch_yahoo_fallback(code, existing_row)
+            except Exception as exc:
+                reason = str(exc)[:80] or "not_found"
+                return ProviderResult(None, None, None, None, None, None, "資料不足", f"{STATUS_CODE_NOT_FOUND}；Yahoo備援失敗：{reason}")
 
         if in_twse:
             name, price = self.twse_map[code]
