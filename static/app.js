@@ -27,7 +27,7 @@ function rowTemplate(r = {}) {
     <td><input class="short" data-k="take_profit" value="${n(r.take_profit)}"></td>
     <td><input data-k="action" value="${n(r.action)}" readonly></td>
     <td><input data-k="trend" value="${n(r.trend)}" readonly></td>
-    <td><input data-k="strategy" value="${n(r.strategy)}"></td>
+    <td class="strategy-cell"><textarea data-k="strategy" rows="2">${n(r.strategy)}</textarea></td>
     <td><input data-k="strategy_status" value="${n(r.strategy_status)}" readonly></td>
     <td><input data-k="last_update" value="${n(r.last_update)}" readonly></td>
     <td><input data-k="notes" value="${n(r.notes)}" readonly></td>
@@ -40,7 +40,7 @@ function rowTemplate(r = {}) {
 function collectRows() {
   return [...tbody.querySelectorAll("tr")].map((tr) => {
     const out = {};
-    tr.querySelectorAll("input[data-k]").forEach((el) => {
+    tr.querySelectorAll("input[data-k], textarea[data-k]").forEach((el) => {
       out[el.dataset.k] = el.value.trim();
     });
     return out;
@@ -101,7 +101,11 @@ async function updateRows() {
   });
   const data = await res.json();
   renderRows(data.rows || []);
-  setStatus(`更新完成（資料源: ${data.provider}）`);
+  if ((data.failed_count || 0) > 0) {
+    setStatus(`更新完成（成功 ${data.success_count || 0}，異常 ${data.failed_count}；${data.first_failure || "請查看備註欄"}）`);
+  } else {
+    setStatus(`更新完成（成功 ${data.success_count || 0}；資料源: ${data.provider}）`);
+  }
 }
 
 async function importExcel(file) {

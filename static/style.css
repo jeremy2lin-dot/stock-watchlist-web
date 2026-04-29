@@ -6,10 +6,22 @@ button { border: 1px solid #2d5f8b; background: #fff; padding: 8px 14px; border-
 button.primary { background: #ff8c00; color: #fff; border-color: #cc5500; }
 #status { min-height: 20px; color: #2d5f8b; font-weight: 700; }
 .table-wrap { overflow: auto; border: 1px solid #c7d5e4; background: #fff; }
-table { width: 100%; border-collapse: collapse; min-width: 1500px; }
+table { width: 100%; border-collapse: collapse; min-width: 1850px; }
 th, td { border: 1px solid #d8e3ee; padding: 6px; text-align: center; white-space: nowrap; }
 th { background: #174d7a; color: #fff; position: sticky; top: 0; }
 td input { width: 100px; box-sizing: border-box; border: 1px solid #d0d7de; padding: 4px; border-radius: 4px; }
 td input.short { width: 72px; }
 td input.date { width: 120px; }
+th.strategy-header, td.strategy-cell { min-width: 320px; width: 320px; }
+td.strategy-cell textarea {
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  border: 1px solid #d0d7de;
+  padding: 6px;
+  border-radius: 4px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.35;
+}
 .note { color: #5c6b7a; font-size: 12px; }
