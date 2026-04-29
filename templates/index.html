@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>個股監控名單（Web）</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260428-2">
+</head>
+<body>
+  <main class="container">
+    <h1>個股監控名單（Web）</h1>
+    <div class="actions">
+      <label for="providerSelect">資料源</label>
+      <select id="providerSelect"></select>
+      <button id="addRowBtn">新增一列</button>
+      <button id="importExcelBtn">從 Excel 匯入</button>
+      <input id="excelFileInput" type="file" accept=".xlsx,.xlsm" hidden>
+      <button id="saveBtn">儲存名單</button>
+      <button id="updateBtn" class="primary">UPDATE NOW</button>
+    </div>
+    <p id="status"></p>
+    <div class="table-wrap">
+      <table id="watchTable">
+        <thead>
+          <tr>
+            <th>觀察開始日期</th><th>股票代號</th><th>股票名稱</th><th>現價</th>
+            <th>5MA</th><th>10MA</th><th>20MA</th><th>50MA</th>
+            <th>買進價位</th><th>停損價位</th><th>停利價位</th>
+            <th>Action</th><th>Trend</th><th>Strategy(手動)</th><th>策略狀態</th>
+            <th>最後更新時間</th><th>備註</th><th>刪除</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </main>
+  <script src="/static/app.js?v=20260428-2"></script>
+</body>
+</html>
