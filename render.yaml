@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: stock-watchlist-web
+    env: python
+    buildCommand: pip install -r requirements-web.txt
+    startCommand: gunicorn web_app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 180
+    envVars:
+      - key: WATCHLIST_DATA_PATH
+        value: /var/data/watchlist_data.json
+      - key: WATCHLIST_USER
+        sync: false
+      - key: WATCHLIST_PASSWORD
+        sync: false
+    disk:
+      name: stock-watchlist-data
+      mountPath: /var/data
+      sizeGB: 1

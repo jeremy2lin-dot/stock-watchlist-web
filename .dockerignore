@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.env
+*.log
+~$*
+watchlist_data.json
+*.xlsm
+*.xlsx
+web_deploy_package/
+web_deploy_package.zip
