@@ -25,6 +25,8 @@ APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = Path(os.getenv("WATCHLIST_DATA_PATH", APP_DIR / "watchlist_data.json"))
 DEFAULT_DATA_PATH = APP_DIR / "default_watchlist_data.json"
 EXPORT_DIR = Path(os.getenv("WATCHLIST_EXPORT_DIR", DATA_PATH.parent / "exports"))
+BACKUP_DIR = Path(os.getenv("WATCHLIST_BACKUP_DIR", DATA_PATH.parent / "backups"))
+MAX_BACKUPS = int(os.getenv("WATCHLIST_MAX_BACKUPS", "50"))
 APP_USER = os.getenv("WATCHLIST_USER", "")
 APP_PASSWORD = os.getenv("WATCHLIST_PASSWORD", "")
 
@@ -135,8 +137,25 @@ def load_data() -> dict:
     return {"rows": [], "provider": "twse_tpex"}
 
 
+def backup_current_data(reason: str = "save") -> Path | None:
+    if not DATA_PATH.exists():
+        return None
+
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    safe_reason = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in reason)[:40]
+    backup_path = BACKUP_DIR / f"watchlist_data_{stamp}_{safe_reason}.json"
+    backup_path.write_text(DATA_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+
+    backups = sorted(BACKUP_DIR.glob("watchlist_data_*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for old_backup in backups[MAX_BACKUPS:]:
+        old_backup.unlink(missing_ok=True)
+    return backup_path
+
+
 def save_data(data: dict) -> None:
     DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+    backup_current_data("before_save")
     tmp_path = DATA_PATH.with_suffix(DATA_PATH.suffix + ".tmp")
     tmp_path.write_text(json.dumps(normalize_data(data), ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp_path, DATA_PATH)
@@ -352,6 +371,9 @@ def api_save_watchlist():
     payload = request.get_json(force=True)
     rows = payload.get("rows", [])
     data = load_data()
+    existing_rows = data.get("rows", [])
+    if existing_rows and not rows and not payload.get("allow_empty"):
+        return jsonify({"ok": False, "error": "refuse_empty_overwrite"}), 409
     data["rows"] = rows
     save_data(data)
     return jsonify({"ok": True})
