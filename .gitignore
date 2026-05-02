@@ -1,6 +1,8 @@
 __pycache__/
 *.pyc
 .env
+github_token.txt
+*token*.txt
 ~$*
 *.log
 watchlist_data.json

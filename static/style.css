@@ -6,12 +6,13 @@ button { border: 1px solid #2d5f8b; background: #fff; padding: 8px 14px; border-
 button.primary { background: #ff8c00; color: #fff; border-color: #cc5500; }
 #status { min-height: 20px; color: #2d5f8b; font-weight: 700; }
 .table-wrap { overflow: auto; border: 1px solid #c7d5e4; background: #fff; }
-table { width: 100%; border-collapse: collapse; min-width: 2150px; }
+table { width: 100%; border-collapse: collapse; min-width: 2250px; }
 th, td { border: 1px solid #d8e3ee; padding: 6px; text-align: center; white-space: nowrap; }
 th { background: #174d7a; color: #fff; position: sticky; top: 0; }
 td input { width: 100px; box-sizing: border-box; border: 1px solid #d0d7de; padding: 4px; border-radius: 4px; }
 td input.short { width: 72px; }
 td input.date { width: 120px; }
+td input.below-breakeven { color: #c62828; font-weight: 800; border-color: #c62828; background: #fff5f5; }
 th.strategy-header, td.strategy-cell { min-width: 320px; width: 320px; }
 th.notes-header, td.notes-cell { min-width: 360px; width: 360px; }
 td.strategy-cell textarea,

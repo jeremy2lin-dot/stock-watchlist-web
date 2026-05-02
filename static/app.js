@@ -6,6 +6,21 @@ const providerSelect = document.querySelector("#providerSelect");
 let saveTimer = null;
 let isRendering = false;
 
+const TEXT = {
+  delete: "\u522a\u9664",
+  saved: "\u5df2\u5132\u5b58",
+  autoSaved: "\u5df2\u81ea\u52d5\u5132\u5b58",
+  autoSaveFailed: "\u81ea\u52d5\u5132\u5b58\u5931\u6557\uff0c\u8acb\u624b\u52d5\u5132\u5b58\u78ba\u8a8d",
+  updating: "\u66f4\u65b0\u4e2d...",
+  updateDone: "\u66f4\u65b0\u5b8c\u6210",
+  importStarted: "Excel \u532f\u5165\u4e2d...",
+  importFailed: "\u532f\u5165\u5931\u6557",
+  importDone: "\u532f\u5165\u5b8c\u6210",
+  rows: "\u7b46",
+  providerSaved: "\u5df2\u5132\u5b58\u8cc7\u6599\u4f86\u6e90",
+  loadFailed: "\u8f09\u5165\u5931\u6557",
+};
+
 function setStatus(msg) {
   statusEl.textContent = msg;
 }
@@ -14,8 +29,12 @@ function n(v) {
   return v ?? "";
 }
 
-function setValue(el, value) {
-  el.value = n(value);
+function parseNumber(v) {
+  if (v === null || v === undefined) return null;
+  const text = String(v).replace(/,/g, "").trim();
+  if (!text) return null;
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
 }
 
 function cellInput(key, value, className = "", readOnly = false) {
@@ -40,12 +59,21 @@ function cellTextarea(key, value, className = "", rows = 2) {
   return td;
 }
 
+function applyRowDisplayState(tr) {
+  const price = parseNumber(tr.querySelector('[data-k="price"]')?.value);
+  const breakevenInput = tr.querySelector('[data-k="entry"]');
+  const breakeven = parseNumber(breakevenInput?.value);
+  if (!breakevenInput) return;
+  breakevenInput.classList.toggle("below-breakeven", price !== null && breakeven !== null && price < breakeven);
+}
+
 function rowTemplate(r = {}) {
   const tr = document.createElement("tr");
   tr.appendChild(cellInput("watch_date", r.watch_date, "date"));
   tr.appendChild(cellInput("ticker", r.ticker, "short"));
   tr.appendChild(cellInput("name", r.name));
   tr.appendChild(cellInput("price", r.price, "short"));
+  tr.appendChild(cellInput("planned_buy_price", r.planned_buy_price, "short"));
   tr.appendChild(cellInput("ma5", r.ma5, "short"));
   tr.appendChild(cellInput("ma10", r.ma10, "short"));
   tr.appendChild(cellInput("ma20", r.ma20, "short"));
@@ -65,13 +93,14 @@ function rowTemplate(r = {}) {
   const delBtn = document.createElement("button");
   delBtn.className = "del";
   delBtn.type = "button";
-  delBtn.textContent = "刪除";
+  delBtn.textContent = TEXT.delete;
   delBtn.addEventListener("click", () => {
     tr.remove();
     scheduleSave();
   });
   actionTd.appendChild(delBtn);
   tr.appendChild(actionTd);
+  applyRowDisplayState(tr);
   return tr;
 }
 
@@ -128,7 +157,7 @@ async function saveRows({ quiet = false } = {}) {
     body: JSON.stringify({ rows }),
   });
   if (!res.ok) throw new Error("save_failed");
-  if (!quiet) setStatus("已保存");
+  if (!quiet) setStatus(TEXT.saved);
 }
 
 function scheduleSave() {
@@ -137,9 +166,9 @@ function scheduleSave() {
   saveTimer = window.setTimeout(async () => {
     try {
       await saveRows({ quiet: true });
-      setStatus(`已自動保存 ${new Date().toLocaleTimeString()}`);
+      setStatus(`${TEXT.autoSaved} ${new Date().toLocaleTimeString()}`);
     } catch {
-      setStatus("自動保存失敗，請按保存再試一次");
+      setStatus(TEXT.autoSaveFailed);
     }
   }, 700);
 }
@@ -152,7 +181,7 @@ async function flushPendingSave() {
 }
 
 async function updateRows() {
-  setStatus("更新中...");
+  setStatus(TEXT.updating);
   await flushPendingSave();
   await saveRows({ quiet: true });
   await saveProvider(providerSelect.value);
@@ -164,25 +193,25 @@ async function updateRows() {
   const data = await res.json();
   renderRows(data.rows || []);
   if ((data.failed_count || 0) > 0) {
-    setStatus(`更新完成：成功 ${data.success_count || 0}，失敗 ${data.failed_count}。${data.first_failure || "請查看系統備註"}`);
+    setStatus(`${TEXT.updateDone}: ${data.success_count || 0} OK, ${data.failed_count} failed. ${data.first_failure || ""}`);
   } else {
-    setStatus(`更新完成：成功 ${data.success_count || 0}，資料來源 ${data.provider}`);
+    setStatus(`${TEXT.updateDone}: ${data.success_count || 0} OK, ${data.provider}`);
   }
 }
 
 async function importExcel(file) {
   const fd = new FormData();
   fd.append("file", file);
-  setStatus("Excel 匯入中...");
+  setStatus(TEXT.importStarted);
   const res = await fetch("/api/import_excel", { method: "POST", body: fd });
   const data = await res.json();
   if (!res.ok || !data.ok) {
-    setStatus("匯入失敗");
+    setStatus(TEXT.importFailed);
     return;
   }
   renderRows(data.rows || []);
   await saveRows({ quiet: true });
-  setStatus(`匯入完成，共 ${data.count} 筆`);
+  setStatus(`${TEXT.importDone}: ${data.count} ${TEXT.rows}`);
 }
 
 document.querySelector("#addRowBtn").addEventListener("click", () => {
@@ -192,13 +221,14 @@ document.querySelector("#addRowBtn").addEventListener("click", () => {
 
 tbody.addEventListener("input", (event) => {
   if (event.target.matches("input[data-k], textarea[data-k]")) {
+    applyRowDisplayState(event.target.closest("tr"));
     scheduleSave();
   }
 });
 
 providerSelect.addEventListener("change", async () => {
   await saveProvider(providerSelect.value);
-  setStatus(`已保存資料來源：${providerSelect.value}`);
+  setStatus(`${TEXT.providerSaved}: ${providerSelect.value}`);
 });
 
 document.querySelector("#importExcelBtn").addEventListener("click", () => excelFileInput.click());
@@ -221,4 +251,4 @@ window.addEventListener("beforeunload", () => {
   navigator.sendBeacon("/api/watchlist", new Blob([payload], { type: "application/json" }));
 });
 
-loadRows().catch(() => setStatus("載入失敗"));
+loadRows().catch(() => setStatus(TEXT.loadFailed));

@@ -73,18 +73,47 @@ def parse_float(value: object) -> float | None:
         return None
 
 
+def normalize_row(row: dict) -> dict:
+    row.setdefault("watch_date", "")
+    row["ticker"] = normalize_stock_code(row.get("ticker", ""))
+    row.setdefault("name", "")
+    row.setdefault("price", "")
+    row.setdefault("planned_buy_price", "")
+    row.setdefault("ma5", "")
+    row.setdefault("ma10", "")
+    row.setdefault("ma20", "")
+    row.setdefault("ma50", "")
+    row.setdefault("entry", "")
+    row.setdefault("stop_loss", "")
+    row.setdefault("take_profit", "")
+    row.setdefault("action", "")
+    row.setdefault("trend", "")
+    row.setdefault("strategy", "")
+    row.setdefault("strategy_status", "")
+    row.setdefault("user_notes", "")
+    row.setdefault("last_update", "")
+    row.setdefault("notes", "")
+    return row
+
+
+def normalize_data(data: dict) -> dict:
+    data.setdefault("provider", "twse_tpex")
+    data["rows"] = [normalize_row(row) for row in data.get("rows", [])]
+    return data
+
+
 def load_data() -> dict:
     if DATA_PATH.exists():
-        return json.loads(DATA_PATH.read_text(encoding="utf-8"))
+        return normalize_data(json.loads(DATA_PATH.read_text(encoding="utf-8")))
     if DEFAULT_DATA_PATH.exists():
-        return json.loads(DEFAULT_DATA_PATH.read_text(encoding="utf-8"))
+        return normalize_data(json.loads(DEFAULT_DATA_PATH.read_text(encoding="utf-8")))
     return {"rows": [], "provider": "twse_tpex"}
 
 
 def save_data(data: dict) -> None:
     DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = DATA_PATH.with_suffix(DATA_PATH.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.write_text(json.dumps(normalize_data(data), ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp_path, DATA_PATH)
 
 
@@ -105,26 +134,29 @@ def import_rows_from_excel(excel_path: Path) -> list[dict]:
             return "" if value is None else str(value).strip()
 
         rows.append(
-            {
-                "watch_date": cell("A"),
-                "ticker": normalize_stock_code(cell("B")),
-                "name": cell("C"),
-                "price": cell("D"),
-                "ma5": cell("E"),
-                "ma10": cell("F"),
-                "ma20": cell("G"),
-                "ma50": cell("H"),
-                "entry": cell("I"),
-                "stop_loss": cell("J"),
-                "take_profit": cell("K"),
-                "action": cell("L"),
-                "trend": cell("M"),
-                "strategy": "",
-                "strategy_status": cell("N"),
-                "last_update": cell("O"),
-                "user_notes": "",
-                "notes": cell("P"),
-            }
+            normalize_row(
+                {
+                    "watch_date": cell("A"),
+                    "ticker": cell("B"),
+                    "name": cell("C"),
+                    "price": cell("D"),
+                    "planned_buy_price": "",
+                    "ma5": cell("E"),
+                    "ma10": cell("F"),
+                    "ma20": cell("G"),
+                    "ma50": cell("H"),
+                    "entry": cell("I"),
+                    "stop_loss": cell("J"),
+                    "take_profit": cell("K"),
+                    "action": cell("L"),
+                    "trend": cell("M"),
+                    "strategy": "",
+                    "strategy_status": cell("N"),
+                    "last_update": cell("O"),
+                    "user_notes": "",
+                    "notes": cell("P"),
+                }
+            )
         )
         row_num += 1
     return rows
@@ -133,29 +165,34 @@ def import_rows_from_excel(excel_path: Path) -> list[dict]:
 def apply_row_strategy_fields(row: dict, result: ProviderResult) -> None:
     stop_loss = parse_float(row.get("stop_loss"))
     take_profit = parse_float(row.get("take_profit"))
+    planned_buy_price = parse_float(row.get("planned_buy_price"))
     price = parse_float(row.get("price"))
 
     if price is None:
-        action = "觀察"
+        action = "\u89c0\u5bdf"
     elif take_profit is not None and price >= take_profit:
-        action = "停利"
+        action = "\u505c\u5229"
     elif stop_loss is not None and price <= stop_loss:
-        action = "停損"
+        action = "\u505c\u640d"
+    elif planned_buy_price is not None and price <= planned_buy_price:
+        action = "\u53ef\u8cb7\u5165"
     else:
-        action = "續抱/觀察"
+        action = "\u7e8c\u62b1/\u89c0\u5bdf"
 
     row["action"] = action
     if row.get("ma5") in ("", None) or row.get("ma10") in ("", None) or row.get("ma20") in ("", None) or row.get("ma50") in ("", None):
-        row["trend"] = "資料不足"
+        row["trend"] = "\u8cc7\u6599\u4e0d\u8db3"
     else:
         row["trend"] = result.trend
 
-    if action == "停利":
-        row["strategy_status"] = "達到停利價"
-    elif action == "停損":
-        row["strategy_status"] = "跌破停損價"
+    if action == "\u505c\u5229":
+        row["strategy_status"] = "\u9054\u5230\u505c\u5229\u50f9"
+    elif action == "\u505c\u640d":
+        row["strategy_status"] = "\u8dcc\u7834\u505c\u640d\u50f9"
+    elif action == "\u53ef\u8cb7\u5165":
+        row["strategy_status"] = "\u4f4e\u65bc\u9810\u5b9a\u8cb7\u5165\u50f9"
     else:
-        row["strategy_status"] = "持續追蹤"
+        row["strategy_status"] = "\u6301\u7e8c\u8ffd\u8e64"
 
 
 def provider_by_name(name: str):
@@ -190,9 +227,9 @@ def api_providers():
         {
             "default": "twse_tpex",
             "providers": [
-                {"id": "twse_tpex", "name": "TWSE/TPEX (公開資料)"},
-                {"id": "goodinfo_exp", "name": "Goodinfo 實驗模式（非正式）"},
-                {"id": "mega_api", "name": "兆豐 API (待串接)"},
+                {"id": "twse_tpex", "name": "TWSE/TPEX (\u516c\u958b\u8cc7\u6599)"},
+                {"id": "goodinfo_exp", "name": "Goodinfo \u5be6\u9a57\u6a21\u5f0f\uff08\u975e\u6b63\u5f0f\uff09"},
+                {"id": "mega_api", "name": "\u5146\u8c50 API (\u672c\u6a5f Speedy \u884c\u60c5)"},
             ],
         }
     )
@@ -256,6 +293,7 @@ def api_update():
     first_failure = ""
 
     for row in rows:
+        normalize_row(row)
         code = normalize_stock_code(row.get("ticker", ""))
         row["ticker"] = code
         if not code:

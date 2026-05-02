@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>個股監控名單 Web</title>
-  <link rel="stylesheet" href="/static/style.css?v=20260501-1">
+  <title>&#21488;&#32929;&#35264;&#23519;&#21517;&#21934; Web</title>
+  <link rel="stylesheet" href="/static/style.css?v=20260502-2">
 </head>
 <body>
   <main class="container">
-    <h1>個股監控名單 Web</h1>
+    <h1>&#21488;&#32929;&#35264;&#23519;&#21517;&#21934; Web</h1>
     <div class="actions">
-      <label for="providerSelect">資料來源</label>
+      <label for="providerSelect">&#36039;&#26009;&#20358;&#28304;</label>
       <select id="providerSelect"></select>
-      <button id="addRowBtn" type="button">新增一列</button>
-      <button id="importExcelBtn" type="button">從 Excel 匯入</button>
+      <button id="addRowBtn" type="button">&#26032;&#22686;&#19968;&#21015;</button>
+      <button id="importExcelBtn" type="button">&#21295;&#20837; Excel</button>
       <input id="excelFileInput" type="file" accept=".xlsx,.xlsm" hidden>
-      <button id="saveBtn" type="button">保存</button>
+      <button id="saveBtn" type="button">&#20786;&#23384;</button>
       <button id="updateBtn" class="primary" type="button">UPDATE NOW</button>
     </div>
     <p id="status"></p>
@@ -23,17 +23,32 @@
       <table id="watchTable">
         <thead>
           <tr>
-            <th>觀察日期</th><th>股票代號</th><th>股票名稱</th><th>現價</th>
-            <th>5MA</th><th>10MA</th><th>20MA</th><th>50MA</th>
-            <th>進場價</th><th>停損價</th><th>停利價</th>
-            <th>Action</th><th>Trend</th><th class="strategy-header">Strategy</th><th>策略狀態</th>
-            <th class="notes-header">註記</th><th>最後更新</th><th>系統備註</th><th>操作</th>
+            <th>&#35264;&#23519;&#26085;&#26399;</th>
+            <th>&#32929;&#31080;&#20195;&#34399;</th>
+            <th>&#32929;&#31080;&#21517;&#31281;</th>
+            <th>&#29694;&#20729;</th>
+            <th>&#38928;&#23450;&#36023;&#20837;&#20729;&#20301;</th>
+            <th>5MA</th>
+            <th>10MA</th>
+            <th>20MA</th>
+            <th>50MA</th>
+            <th>&#25613;&#24179;&#20729;</th>
+            <th>&#20572;&#25613;&#20729;</th>
+            <th>&#20572;&#21033;&#20729;</th>
+            <th>Action</th>
+            <th>Trend</th>
+            <th class="strategy-header">Strategy</th>
+            <th>&#31574;&#30053;&#29376;&#24907;</th>
+            <th class="notes-header">&#35387;&#35352;</th>
+            <th>&#26368;&#24460;&#26356;&#26032;</th>
+            <th>&#31995;&#32113;&#20633;&#35387;</th>
+            <th>&#25805;&#20316;</th>
           </tr>
         </thead>
         <tbody></tbody>
       </table>
     </div>
   </main>
-  <script src="/static/app.js?v=20260501-1"></script>
+  <script src="/static/app.js?v=20260502-2"></script>
 </body>
 </html>
