@@ -3,6 +3,9 @@ const statusEl = document.querySelector("#status");
 const excelFileInput = document.querySelector("#excelFileInput");
 const providerSelect = document.querySelector("#providerSelect");
 
+let saveTimer = null;
+let isRendering = false;
+
 function setStatus(msg) {
   statusEl.textContent = msg;
 }
@@ -11,29 +14,64 @@ function n(v) {
   return v ?? "";
 }
 
+function setValue(el, value) {
+  el.value = n(value);
+}
+
+function cellInput(key, value, className = "", readOnly = false) {
+  const td = document.createElement("td");
+  const input = document.createElement("input");
+  input.dataset.k = key;
+  input.value = n(value);
+  if (className) input.className = className;
+  if (readOnly) input.readOnly = true;
+  td.appendChild(input);
+  return td;
+}
+
+function cellTextarea(key, value, className = "", rows = 2) {
+  const td = document.createElement("td");
+  if (className) td.className = className;
+  const textarea = document.createElement("textarea");
+  textarea.dataset.k = key;
+  textarea.rows = rows;
+  textarea.value = n(value);
+  td.appendChild(textarea);
+  return td;
+}
+
 function rowTemplate(r = {}) {
   const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td><input class="date" data-k="watch_date" value="${n(r.watch_date)}"></td>
-    <td><input class="short" data-k="ticker" value="${n(r.ticker)}"></td>
-    <td><input data-k="name" value="${n(r.name)}"></td>
-    <td><input class="short" data-k="price" value="${n(r.price)}"></td>
-    <td><input class="short" data-k="ma5" value="${n(r.ma5)}"></td>
-    <td><input class="short" data-k="ma10" value="${n(r.ma10)}"></td>
-    <td><input class="short" data-k="ma20" value="${n(r.ma20)}"></td>
-    <td><input class="short" data-k="ma50" value="${n(r.ma50)}"></td>
-    <td><input class="short" data-k="entry" value="${n(r.entry)}"></td>
-    <td><input class="short" data-k="stop_loss" value="${n(r.stop_loss)}"></td>
-    <td><input class="short" data-k="take_profit" value="${n(r.take_profit)}"></td>
-    <td><input data-k="action" value="${n(r.action)}" readonly></td>
-    <td><input data-k="trend" value="${n(r.trend)}" readonly></td>
-    <td class="strategy-cell"><textarea data-k="strategy" rows="2">${n(r.strategy)}</textarea></td>
-    <td><input data-k="strategy_status" value="${n(r.strategy_status)}" readonly></td>
-    <td><input data-k="last_update" value="${n(r.last_update)}" readonly></td>
-    <td><input data-k="notes" value="${n(r.notes)}" readonly></td>
-    <td><button class="del">刪</button></td>
-  `;
-  tr.querySelector(".del").addEventListener("click", () => tr.remove());
+  tr.appendChild(cellInput("watch_date", r.watch_date, "date"));
+  tr.appendChild(cellInput("ticker", r.ticker, "short"));
+  tr.appendChild(cellInput("name", r.name));
+  tr.appendChild(cellInput("price", r.price, "short"));
+  tr.appendChild(cellInput("ma5", r.ma5, "short"));
+  tr.appendChild(cellInput("ma10", r.ma10, "short"));
+  tr.appendChild(cellInput("ma20", r.ma20, "short"));
+  tr.appendChild(cellInput("ma50", r.ma50, "short"));
+  tr.appendChild(cellInput("entry", r.entry, "short"));
+  tr.appendChild(cellInput("stop_loss", r.stop_loss, "short"));
+  tr.appendChild(cellInput("take_profit", r.take_profit, "short"));
+  tr.appendChild(cellInput("action", r.action, "", true));
+  tr.appendChild(cellInput("trend", r.trend, "", true));
+  tr.appendChild(cellTextarea("strategy", r.strategy, "strategy-cell", 2));
+  tr.appendChild(cellInput("strategy_status", r.strategy_status, "", true));
+  tr.appendChild(cellTextarea("user_notes", r.user_notes, "notes-cell", 2));
+  tr.appendChild(cellInput("last_update", r.last_update, "", true));
+  tr.appendChild(cellInput("notes", r.notes, "system-note", true));
+
+  const actionTd = document.createElement("td");
+  const delBtn = document.createElement("button");
+  delBtn.className = "del";
+  delBtn.type = "button";
+  delBtn.textContent = "刪除";
+  delBtn.addEventListener("click", () => {
+    tr.remove();
+    scheduleSave();
+  });
+  actionTd.appendChild(delBtn);
+  tr.appendChild(actionTd);
   return tr;
 }
 
@@ -48,8 +86,10 @@ function collectRows() {
 }
 
 function renderRows(rows) {
+  isRendering = true;
   tbody.innerHTML = "";
   rows.forEach((r) => tbody.appendChild(rowTemplate(r)));
+  isRendering = false;
 }
 
 async function loadProviders(selectedId = "twse_tpex") {
@@ -80,19 +120,41 @@ async function loadRows() {
   renderRows(data.rows || []);
 }
 
-async function saveRows() {
+async function saveRows({ quiet = false } = {}) {
   const rows = collectRows();
-  await fetch("/api/watchlist", {
+  const res = await fetch("/api/watchlist", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rows }),
   });
-  setStatus("已儲存");
+  if (!res.ok) throw new Error("save_failed");
+  if (!quiet) setStatus("已保存");
+}
+
+function scheduleSave() {
+  if (isRendering) return;
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(async () => {
+    try {
+      await saveRows({ quiet: true });
+      setStatus(`已自動保存 ${new Date().toLocaleTimeString()}`);
+    } catch {
+      setStatus("自動保存失敗，請按保存再試一次");
+    }
+  }, 700);
+}
+
+async function flushPendingSave() {
+  if (!saveTimer) return;
+  window.clearTimeout(saveTimer);
+  saveTimer = null;
+  await saveRows({ quiet: true });
 }
 
 async function updateRows() {
   setStatus("更新中...");
-  await saveRows();
+  await flushPendingSave();
+  await saveRows({ quiet: true });
   await saveProvider(providerSelect.value);
   const res = await fetch("/api/update", {
     method: "POST",
@@ -102,9 +164,9 @@ async function updateRows() {
   const data = await res.json();
   renderRows(data.rows || []);
   if ((data.failed_count || 0) > 0) {
-    setStatus(`更新完成（成功 ${data.success_count || 0}，異常 ${data.failed_count}；${data.first_failure || "請查看備註欄"}）`);
+    setStatus(`更新完成：成功 ${data.success_count || 0}，失敗 ${data.failed_count}。${data.first_failure || "請查看系統備註"}`);
   } else {
-    setStatus(`更新完成（成功 ${data.success_count || 0}；資料源: ${data.provider}）`);
+    setStatus(`更新完成：成功 ${data.success_count || 0}，資料來源 ${data.provider}`);
   }
 }
 
@@ -119,16 +181,24 @@ async function importExcel(file) {
     return;
   }
   renderRows(data.rows || []);
+  await saveRows({ quiet: true });
   setStatus(`匯入完成，共 ${data.count} 筆`);
 }
 
 document.querySelector("#addRowBtn").addEventListener("click", () => {
   tbody.appendChild(rowTemplate({ watch_date: new Date().toISOString().slice(0, 10) }));
+  scheduleSave();
+});
+
+tbody.addEventListener("input", (event) => {
+  if (event.target.matches("input[data-k], textarea[data-k]")) {
+    scheduleSave();
+  }
 });
 
 providerSelect.addEventListener("change", async () => {
   await saveProvider(providerSelect.value);
-  setStatus(`已切換資料源: ${providerSelect.value}`);
+  setStatus(`已保存資料來源：${providerSelect.value}`);
 });
 
 document.querySelector("#importExcelBtn").addEventListener("click", () => excelFileInput.click());
@@ -139,7 +209,16 @@ excelFileInput.addEventListener("change", async (e) => {
   excelFileInput.value = "";
 });
 
-document.querySelector("#saveBtn").addEventListener("click", saveRows);
+document.querySelector("#saveBtn").addEventListener("click", async () => {
+  await flushPendingSave();
+  await saveRows();
+});
 document.querySelector("#updateBtn").addEventListener("click", updateRows);
+
+window.addEventListener("beforeunload", () => {
+  if (!saveTimer) return;
+  const payload = JSON.stringify({ rows: collectRows() });
+  navigator.sendBeacon("/api/watchlist", new Blob([payload], { type: "application/json" }));
+});
 
 loadRows().catch(() => setStatus("載入失敗"));
