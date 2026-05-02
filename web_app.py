@@ -4,12 +4,14 @@ import json
 import os
 import secrets
 import tempfile
+from io import BytesIO
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request
-from openpyxl import load_workbook
+from flask import Flask, Response, jsonify, render_template, request, send_file
+from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
 
 from watchlist_providers import (
     GoodinfoExperimentalProvider,
@@ -22,10 +24,33 @@ from watchlist_providers import (
 APP_DIR = Path(__file__).resolve().parent
 DATA_PATH = Path(os.getenv("WATCHLIST_DATA_PATH", APP_DIR / "watchlist_data.json"))
 DEFAULT_DATA_PATH = APP_DIR / "default_watchlist_data.json"
+EXPORT_DIR = Path(os.getenv("WATCHLIST_EXPORT_DIR", DATA_PATH.parent / "exports"))
 APP_USER = os.getenv("WATCHLIST_USER", "")
 APP_PASSWORD = os.getenv("WATCHLIST_PASSWORD", "")
 
 app = Flask(__name__)
+
+EXPORT_COLUMNS = [
+    ("watch_date", "\u89c0\u5bdf\u65e5\u671f"),
+    ("ticker", "\u80a1\u7968\u4ee3\u865f"),
+    ("name", "\u80a1\u7968\u540d\u7a31"),
+    ("price", "\u73fe\u50f9"),
+    ("planned_buy_price", "\u9810\u5b9a\u8cb7\u5165\u50f9\u4f4d"),
+    ("ma5", "5MA"),
+    ("ma10", "10MA"),
+    ("ma20", "20MA"),
+    ("ma50", "50MA"),
+    ("entry", "\u640d\u5e73\u50f9"),
+    ("stop_loss", "\u505c\u640d\u50f9"),
+    ("take_profit", "\u505c\u5229\u50f9"),
+    ("action", "Action"),
+    ("trend", "Trend"),
+    ("strategy", "Strategy"),
+    ("strategy_status", "\u7b56\u7565\u72c0\u614b"),
+    ("user_notes", "\u8a3b\u8a18"),
+    ("last_update", "\u6700\u5f8c\u66f4\u65b0"),
+    ("notes", "\u7cfb\u7d71\u5099\u8a3b"),
+]
 
 
 def require_auth(func):
@@ -160,6 +185,60 @@ def import_rows_from_excel(excel_path: Path) -> list[dict]:
         )
         row_num += 1
     return rows
+
+
+def export_rows_to_excel(data: dict) -> BytesIO:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Watchlist"
+    ws.freeze_panes = "A2"
+
+    header_fill = PatternFill(fill_type="solid", fgColor="174D7A")
+    header_font = Font(color="FFFFFF", bold=True)
+    header_alignment = Alignment(horizontal="center", vertical="center")
+    wrap_alignment = Alignment(vertical="top", wrap_text=True)
+
+    for col_idx, (_, label) in enumerate(EXPORT_COLUMNS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=label)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_alignment
+
+    for row_idx, row in enumerate(data.get("rows", []), start=2):
+        normalize_row(row)
+        for col_idx, (key, _) in enumerate(EXPORT_COLUMNS, start=1):
+            value = row.get(key, "")
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.alignment = wrap_alignment
+
+    widths = {
+        "A": 14,
+        "B": 12,
+        "C": 16,
+        "D": 12,
+        "E": 18,
+        "F": 10,
+        "G": 10,
+        "H": 10,
+        "I": 10,
+        "J": 12,
+        "K": 12,
+        "L": 12,
+        "M": 14,
+        "N": 14,
+        "O": 42,
+        "P": 18,
+        "Q": 42,
+        "R": 20,
+        "S": 36,
+    }
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
 
 
 def apply_row_strategy_fields(row: dict, result: ProviderResult) -> None:
@@ -358,6 +437,23 @@ def api_import_excel():
     finally:
         if tmp_path and tmp_path.exists():
             tmp_path.unlink(missing_ok=True)
+
+
+@app.get("/api/export_excel")
+@require_auth
+def api_export_excel():
+    output = export_rows_to_excel(load_data())
+    filename = f"stock_watchlist_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    saved_path = EXPORT_DIR / filename
+    saved_path.write_bytes(output.getvalue())
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=filename,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 if __name__ == "__main__":

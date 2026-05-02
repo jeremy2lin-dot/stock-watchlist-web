@@ -6,5 +6,6 @@ github_token.txt
 ~$*
 *.log
 watchlist_data.json
+exports/
 *.xlsm
 *.xlsx

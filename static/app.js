@@ -16,6 +16,9 @@ const TEXT = {
   importStarted: "Excel \u532f\u5165\u4e2d...",
   importFailed: "\u532f\u5165\u5931\u6557",
   importDone: "\u532f\u5165\u5b8c\u6210",
+  exportStarted: "Excel \u532f\u51fa\u4e2d...",
+  exportFailed: "\u532f\u51fa\u5931\u6557",
+  exportDone: "\u532f\u51fa\u5b8c\u6210",
   rows: "\u7b46",
   providerSaved: "\u5df2\u5132\u5b58\u8cc7\u6599\u4f86\u6e90",
   loadFailed: "\u8f09\u5165\u5931\u6557",
@@ -214,6 +217,30 @@ async function importExcel(file) {
   setStatus(`${TEXT.importDone}: ${data.count} ${TEXT.rows}`);
 }
 
+async function exportExcel() {
+  setStatus(TEXT.exportStarted);
+  await flushPendingSave();
+  await saveRows({ quiet: true });
+  const res = await fetch("/api/export_excel");
+  if (!res.ok) {
+    setStatus(TEXT.exportFailed);
+    return;
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : "stock_watchlist.xlsx";
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  setStatus(TEXT.exportDone);
+}
+
 document.querySelector("#addRowBtn").addEventListener("click", () => {
   tbody.appendChild(rowTemplate({ watch_date: new Date().toISOString().slice(0, 10) }));
   scheduleSave();
@@ -232,6 +259,7 @@ providerSelect.addEventListener("change", async () => {
 });
 
 document.querySelector("#importExcelBtn").addEventListener("click", () => excelFileInput.click());
+document.querySelector("#exportExcelBtn").addEventListener("click", exportExcel);
 excelFileInput.addEventListener("change", async (e) => {
   const file = e.target.files && e.target.files[0];
   if (!file) return;
